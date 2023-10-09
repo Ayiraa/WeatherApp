@@ -3,6 +3,7 @@ from PyQt5.uic import loadUi
 import sys
 import requests
 import json
+import time
 
 api_key = '960001ee3cd72d2a0e47e49f2c1c13f5'
 
@@ -18,14 +19,10 @@ class WeatherApp(QMainWindow):
         self.cityLineEdit = QLineEdit(self)
         self.cityComboBox.setLineEdit(self.cityLineEdit)
 
-        # Load city data from JSON file in the 'staticresources' folder
-        json_file_path = 'staticresources/city_data.json'
-
-        with open(json_file_path, 'r', encoding='utf-8') as json_file:
-            self.city_data = json.load(json_file)
+        self.city_data = self.load_or_retrieve_city_data()
 
         # Extract city names from the data
-        city_names = [city["name"] for city in self.city_data]
+        city_names = [f"{city['name']}, {city['country']}" for city in self.city_data]
 
         # Create a QCompleter and associate it with the QLineEdit
         completer = QCompleter(city_names, self)
@@ -57,6 +54,33 @@ class WeatherApp(QMainWindow):
         else:
             QMessageBox.warning(self, "Error", "Please select a city from the list.")
 
+    def load_or_retrieve_city_data(self):
+        # Cache expiration time (in seconds)
+        CACHE_EXPIRATION = 3600  # 1 hour
+
+        # Cache city data in memory if it's not already cached
+        current_time = int(time.time())
+        if (
+                not hasattr(self, "city_data_cache")
+                or current_time - self.city_data_cache.get("timestamp", 0) > CACHE_EXPIRATION
+        ):
+            json_file_path = 'staticresources/city_data.json'
+
+            try:
+                with open(json_file_path, 'r', encoding='utf-8') as json_file:
+                    city_data = json.load(json_file)
+                # Cache the data
+                self.city_data_cache = {"data": city_data, "timestamp": current_time}
+            except Exception as e:
+                # Handle the exception (e.g., show an error message)
+                print(f"Error loading city data: {str(e)}")
+                # Use the previously cached data if available
+                city_data = self.city_data_cache.get("data", [])
+        else:
+            # Use the cached data
+            city_data = self.city_data_cache.get("data", [])
+
+        return city_data
 
 if __name__ == '__main__':
     app = QApplication(sys.argv)
